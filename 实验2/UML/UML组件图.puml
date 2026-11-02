@@ -1,0 +1,50 @@
+@startuml
+title 多人共享记账系统——组件图
+left to right direction
+skinparam componentStyle rectangle
+
+actor "用户" as User
+
+package "多人共享记账系统" {
+  component "用户界面" as UI
+
+  component "账号与会话" as Auth
+  component "账本与成员" as Ledger
+  component "收支记录与分配" as Entry
+  component "审核与纠错" as Review
+  component "查询、预算与统计" as Query
+  component "结算" as Settlement
+
+  component "权限与审计" as Security
+  component "数据存储" as Storage
+}
+
+User --> UI : 操作
+
+UI --> Auth : 注册、登录
+UI --> Ledger : 管理账本及成员
+UI --> Entry : 录入及提交收支
+UI --> Review : 审核及纠错
+UI --> Query : 查询及查看汇总
+UI --> Settlement : 预览及保存结算
+
+Auth --> Security : 校验会话、记录安全事件
+Ledger --> Security : 校验权限、记录操作
+Entry --> Security : 校验权限与私有范围、记录操作
+Review --> Security : 校验审核资格、记录操作
+Query --> Security : 校验数据可见范围
+Settlement --> Security : 校验管理员资格、记录操作
+
+Auth --> Storage : 账号及会话
+Ledger --> Storage : 账本、成员历史及邀请
+Entry --> Storage : 记录及分配明细
+Review --> Storage : 状态、版本及纠错关联
+Query --> Storage : 查询账目、读写预算
+Settlement --> Storage : 读取候选、原子保存批次及归属
+Security --> Storage : 读取权限、保存审计记录
+
+note bottom of Storage
+  结算结果、依据及记录归属同时生效；
+  后续补录和冲销不改写历史结算快照。
+end note
+@enduml
