@@ -1,0 +1,81 @@
+@startuml
+title 多人共享记账系统——审核通过时序图
+autonumber
+
+actor "管理员" as Admin
+boundary "审核页面" as Page
+control "审核服务" as Review
+control "权限服务" as Access
+database "数据库" as DB
+
+Admin -> Page : 打开待审核记录
+Page -> Review : 获取审核详情(entryId)
+Review -> Access : 校验会话、账本资格及管理员权限
+Access -> DB : 查询最新权限和账本状态
+DB --> Access : 返回校验依据
+Access --> Review : 返回校验结果
+
+alt 无权限或账本已解散
+  Review --> Page : 拒绝审核操作
+  Page --> Admin : 显示具体原因及下一步
+else 权限有效
+  Review -> DB : 查询有权访问的记录
+  DB --> Review : 返回记录或不可访问结果
+
+  alt 记录不存在或无权访问
+    Review --> Page : 记录不存在或无权访问
+    Page --> Admin : 显示提示
+  else 可访问记录
+    Review --> Page : 返回内容、状态、提交人和版本v
+    Page --> Admin : 展示审核详情
+    Admin -> Page : 点击“审核通过”
+    Page -> Review : approve(entryId, expectedVersion=v)
+
+    group 数据库事务：校验、更新及日志同时生效
+      Review -> DB : 开始事务，保护目标记录和权限校验依据
+      Review -> Access : 再次校验最新权限及账本状态
+      Access -> DB : 在当前事务内读取最新依据
+      DB --> Access : 当前角色、资格和账本状态
+      Access --> Review : 返回结果
+
+      Review -> DB : 读取目标记录最新状态、提交人及版本
+      DB --> Review : 返回最新数据
+
+      alt 权限失效或账本已解散
+        Review -> DB : 回滚事务
+        Review --> Page : 权限已变化或账本已解散
+      else 审核人就是提交人
+        Review -> DB : 回滚事务
+        Review --> Page : 不得审核本人提交的记录，请由其他管理员审核
+      else 记录不再是待审核
+        Review -> DB : 回滚事务
+        Review --> Page : 记录已撤回或处理，请刷新
+      else 最新版本不等于v
+        Review -> DB : 回滚事务
+        Review --> Page : 记录已修改，请重新查看后审核
+      else 校验通过
+        Review -> DB : 条件更新为已通过，记录审核时间，版本递增
+        DB --> Review : 返回更新行数
+
+        alt 更新行数为0
+          Review -> DB : 回滚事务
+          Review --> Page : 记录发生变化，请刷新
+        else 更新成功
+          Review -> DB : 保存审核人、时间、对象及结果日志
+
+          alt 日志保存或事务提交失败
+            Review -> DB : 回滚或恢复判定，保证无部分生效
+            Review --> Page : 提示查询最新状态后再操作
+          else 事务提交成功
+            Review -> DB : 提交事务
+            DB --> Review : 提交完成
+            Review --> Page : 审核通过
+          end
+        end
+      end
+    end
+
+    Page --> Admin : 显示处理结果和可执行下一步
+  end
+end
+@enduml
