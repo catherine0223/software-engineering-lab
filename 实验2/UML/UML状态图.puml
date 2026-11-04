@@ -8,41 +8,44 @@ state "已通过" as Approved
 state "被退回" as Rejected
 state "已撤回" as Withdrawn
 state "已作废" as Voided
+Pending : 本人修改内容 [仍有记账权限]
+Pending : 保存修改并递增版本
+Rejected : 本人修改内容 [仍有记账权限]
+Rejected : 保存修改并递增版本
+Withdrawn : 本人修改内容 [仍有记账权限]
+Withdrawn : 保存修改并递增版本
 
 [*] --> Draft : 保存新草稿
 [*] --> Pending : 直接提交合法新记录
 
 Draft --> Draft : 本人编辑保存\n[仍有记账权限]
 Draft --> Pending : 本人提交\n[有记账权限且内容完整合法]
-Draft --> Voided : 本人填写原因作废\n[仍有有效账本资格]
+Draft --> Voided : 本人填写原因作废\n[仍是账本成员]
 
-Pending --> Pending : 本人修改内容\n[仍有记账权限，版本递增]
-Pending --> Approved : 其他管理员审核通过\n[状态、权限和查看版本均有效]
-Pending --> Rejected : 其他管理员填写原因退回\n[状态、权限和查看版本均有效]
+
+Pending --> Approved : 管理员（非提交人）审核通过\n[状态、权限和查看版本均有效]
+Pending --> Rejected : 管理员（非提交人）填写原因退回\n[状态、权限和查看版本均有效]
 Pending --> Withdrawn : 本人撤回\n[仍有记账权限]
 Pending --> Voided : 管理员填写原因作废
 
-Rejected --> Rejected : 本人修改内容\n[仍有记账权限]
 Rejected --> Pending : 本人重新提交\n[有记账权限且内容完整合法]
 Rejected --> Voided : 管理员填写原因作废
 
-Withdrawn --> Withdrawn : 本人修改内容\n[仍有记账权限]
 Withdrawn --> Pending : 本人重新提交\n[有记账权限且内容完整合法]
 Withdrawn --> Voided : 管理员填写原因作废
 
-Approved --> Voided : 管理员填写原因作废\n[未结算且无未结束或生效冲销]
+Approved --> Voided : 管理员填写原因作废\n[未结算且无未结束或已生效冲销]
 
 note left of Draft
-  草稿仅有账本访问资格的创建者可见。
+  草稿仅仍有账本访问资格的创建者可见。
   管理员不得查看或代作废他人草稿。
-  降为只读后，只允许带原因作废本人既有草稿，
+  成员降为只读后，只允许带原因作废本人既有草稿，
   不允许编辑、提交或新增。
 end note
 
 note right of Pending
   提交人不等于垫付人或代收人。
-  审核回避按提交人判断。
-  修改后旧版本审核请求必须拒绝。
+  审核只回避提交人，不回避垫付人或代收人。
   撤回、退回后重提保留原编号。
 end note
 

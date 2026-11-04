@@ -1,255 +1,128 @@
 @startuml
-title 多人共享记账系统——类图
+title 多人共享记账系统——核心业务类图
+top to bottom direction
+skinparam defaultFontName Microsoft YaHei
 skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam nodesep 30
+skinparam ranksep 45
 hide empty members
 
 package "账号与账本" {
-  class User {
+  class "用户\nUser" as User {
     - id: Long
     - phone: String
     - passwordHash: String
   }
-
-  class Ledger {
+  class "账本成员关系\nMembership" as Membership {
+    - role: MemberRole
+    - joinedAt: DateTime
+    - leftAt: DateTime [0..1]
+  }
+  class "账本\nLedger" as Ledger {
     - id: Long
     - name: String
     - dissolved: Boolean
-    - dissolvedAt: DateTime
-    - dissolvedBy: Long
   }
-
-  class Membership {
-    - id: Long
-    - role: MemberRole
-    - joinedAt: DateTime
-    - leftAt: DateTime
-  }
-
-  enum MemberRole {
-    ADMIN
-    BOOKKEEPER
-    READER
-  }
-
-  class Invitation {
-    - id: Long
+  class "成员邀请\nInvitation" as Invitation {
     - token: String
     - targetRole: MemberRole
-    - createdAt: DateTime
     - expiresAt: DateTime
-    - usedBy: Long
-    - usedAt: DateTime
+    - usedAt: DateTime [0..1]
   }
 }
 
-package "收支与预算" {
-  class Entry {
-    - id: Long
-    - creatorId: Long
-    - submitterId: Long
-    - fundHolderId: Long
-    - type: EntryType
-    - kind: EntryKind
+package "记账与管理" {
+  class "收支记录\nEntry" as Entry {
     - amountCent: Long
+    - type: EntryType
     - category: String
     - occurredAt: DateTime
-    - approvedAt: DateTime
-    - remark: String
+    - kind: EntryKind
+    - approvedAt: DateTime [0..1]
+    - creatorId: Long
+    - submitterId: Long [0..1]
+    - fundHolderId: Long [0..1]
     - status: EntryStatus
     - version: Integer
     - everSubmitted: Boolean
     - privateOwnerId: Long
-    - originalEntryId: Long
-    - correctedReversalId: Long
+    - originalEntryId: Long [0..1]
+    - correctedReversalId: Long [0..1]
+    + 提交()
+    + 撤回()
+    + 检查状态转换()
   }
-
-  enum EntryType {
-    INCOME
-    EXPENSE
-  }
-
-  enum EntryKind {
-    NORMAL
-    REVERSAL
-    CORRECTION
-  }
-
-  enum EntryStatus {
-    DRAFT
-    PENDING
-    APPROVED
-    REJECTED
-    WITHDRAWN
-    VOIDED
-  }
-
-  class Allocation {
-    - id: Long
+  class "成员分配明细\nAllocation" as Allocation {
     - memberUserId: Long
     - amountCent: Long
     - selectionOrder: Integer
   }
-
-  class MonthlyBudget {
-    - id: Long
+  class "月度预算\nMonthlyBudget" as MonthlyBudget {
     - month: YearMonth
     - amountCent: Long
-    - version: Integer
   }
-}
-
-package "结算与历史" {
-  class SettlementBatch {
-    - id: Long
-    - requestId: String
-    - startDate: Date
-    - endDate: Date
-    - createdAt: DateTime
-    - operatorId: Long
-  }
-
-  class SettlementItem {
-    - id: Long
-    - sourceVersion: Integer
-    - snapshot: EntrySnapshot
-  }
-
-  class TransferPlan {
-    - id: Long
-    - payerUserId: Long
-    - payeeUserId: Long
-    - amountCent: Long
-  }
-
-  class AuditEvent {
-    - id: Long
+  class "操作记录\nAuditEvent" as AuditEvent {
     - operatorId: Long
     - objectId: Long
-    - action: String
     - occurredAt: DateTime
+    - action: String
     - reason: String
     - beforeContent: String
     - afterContent: String
     - visibility: String
-    - privateOwnerId: Long
+    - privateOwnerId: Long [0..1]
   }
 }
 
-package "业务服务" {
-  class AccessService {
-    + checkSession()
-    + checkPermission(userId, ledgerId, action)
-    + checkVisibility(userId, entryId)
+package "结算" {
+  class "结算批次\nSettlementBatch" as SettlementBatch {
+    - id: Long
+    - requestId: String
+    - startDate: Date
+    - endDate: Date
+    - operatorId: Long
+    - createdAt: DateTime
   }
-
-  class EntryService {
-    + saveDraft()
-    + submit(requestId, expectedVersion)
-    + withdraw(expectedVersion)
-    + splitAmount()
+  class "结算明细\nSettlementItem" as SettlementItem {
+    - sourceEntryId: Long
+    - sourceVersion: Integer
+    - snapshot: EntrySnapshot
+    - pairedEntryId: Long [0..1]
+    - inclusionReason: String
   }
-
-  class ReviewService {
-    + approve(entryId, expectedVersion)
-    + reject(entryId, expectedVersion, reason)
-    + voidEntry(entryId, expectedVersion, reason)
-    + applyReversal(originalEntryId)
-    + createCorrection(reversalId)
-  }
-
-  class SettlementService {
-    + preview(ledgerId, dateRange)
-    + confirm(previewId, requestId)
-    + findResult(requestId)
-  }
-
-  class QueryService {
-    + searchEntries(filters)
-    + categoryStatistics(dateRange)
-    + memberStatistics(dateRange)
-    + budgetSummary(month)
+  class "应收应付方案\nTransferPlan" as TransferPlan {
+    - payerUserId: Long
+    - payeeUserId: Long
+    - amountCent: Long
   }
 }
 
-User "1" -- "0..*" Membership : 成员历史
-Ledger "1" -- "0..*" Membership : 成员期间
-Membership --> MemberRole
+User "1" -- "0..*" Membership
+Ledger "1" -- "0..*" Membership
+Ledger "1" -- "0..*" Invitation
+Ledger "1" -- "0..*" Entry
+Ledger "1" -- "0..*" MonthlyBudget
+Ledger "1" -- "0..*" AuditEvent
+Entry "1" *-- "0..*" Allocation
+Ledger "1" -- "0..*" SettlementBatch
+SettlementBatch "1" *-- "1..*" SettlementItem
+SettlementBatch "1" *-- "0..*" TransferPlan
+SettlementItem "0..1" --> "1" Entry : 对应原始记录
 
-Ledger "1" -- "0..*" Invitation : 邀请
-Invitation --> MemberRole
-
-Ledger "1" -- "0..*" Entry : 账目
-Entry "1" *-- "0..*" Allocation : 分配明细
-Allocation --> User : 承担人或受益人
-Entry --> User : 创建人、提交人及资金角色
-Entry --> EntryType
-Entry --> EntryKind
-Entry --> EntryStatus
-Entry "0..*" --> "0..1" Entry : 原账关联
-Entry "0..*" --> "0..1" Entry : 补记所关联的冲销
-
-Ledger "1" -- "0..*" MonthlyBudget : 月预算
-Ledger "1" -- "0..*" SettlementBatch : 结算历史
-SettlementBatch "1" *-- "1..*" SettlementItem : 纳入依据
-SettlementBatch "1" *-- "0..*" TransferPlan : 应收应付方案
-SettlementItem "0..1" --> "1" Entry : 来源记录
-Ledger "1" -- "0..*" AuditEvent : 操作历史
-
-EntryService ..> AccessService
-EntryService ..> Entry
-EntryService ..> Allocation
-EntryService ..> AuditEvent
-
-ReviewService ..> AccessService
-ReviewService ..> Entry
-ReviewService ..> AuditEvent
-
-SettlementService ..> AccessService
-SettlementService ..> Entry
-SettlementService ..> SettlementBatch
-SettlementService ..> AuditEvent
-
-QueryService ..> AccessService
-QueryService ..> Entry
-QueryService ..> MonthlyBudget
-
-note bottom of Membership
-  角色按账本分别设置。
-  同一用户在同一账本至多一条有效成员关系；
-  退出、重新加入均保留历史期间。
-end note
-
-note bottom of Entry
-  fundHolderId：支出为垫付人，收入为代收人。
-  草稿允许部分字段暂空，提交时必须完整合法。
-  从未提交的草稿作废后仍然私有。
-  冲销以正金额复制原账，生效时反向计算。
-  同一原账最多一份未结束冲销、一次生效冲销；
-  同一冲销最多关联一条正确补记。
-end note
-
-note bottom of Allocation
-  保存选择顺序，成员不重复。
-  提交时分配合计等于总额。
-  平分余分全部分给选择顺序第一人。
-  所选成员须符合发生时间对应的历史资格。
-end note
-
-note bottom of SettlementItem
-  snapshot保存当时金额、类型、资金角色、
-  分配明细及必要的计算依据。
-  同一记录至多属于一个成功结算批次。
-  后续补录和冲销不改写已有快照。
-end note
-
-note bottom of TransferPlan
-  仅表示应收应付方案。
-  实际付款情况未记录。
-end note
-
-note bottom of AuditEvent
-  区分公共业务日志、本人私有历史和系统审计。
-  公共日志不得泄露他人私有草稿。
-  审计记录不可修改或删除。
-end note
+legend bottom left
+  本图展示核心业务类及主要属性；服务调用见组件图、时序图，审核状态取值见状态图。
+  金额amountCent以分保存，[0..1]表示可以为空，通用编号等细节不全部展开。
+  MemberRole、EntryType、EntryKind、EntryStatus为枚举类型，本图不单独展开；usedAt为空表示邀请尚未使用。
+  snapshot保存结算时的账目和分配副本，pairedEntryId记录同组原账或冲销，inclusionReason记录加入原因。
+  1．角色按账本设置；同一用户在同一账本同时最多一条有效成员关系，退出后保留历史。
+  2．创建人、提交人、垫付或代收人分别保存；分配明细引用用户，可包含符合发生日期资格的历史成员。
+  3．草稿允许信息未填全；提交时分配合计等于总额，平分剩余部分交给第一个选中成员。
+  4．从未提交的草稿即使作废仍私有；管理员也无权查看他人私有草稿，日志同样按范围限制。
+  5．冲销保存原账编号并反向抵消；同一原账最多一份未结束申请、一次生效冲销，每笔冲销最多一条补记。
+  6．已选原账和已通过的关联冲销均未结算时，必须同批次一起保存，不受冲销日期范围限制。
+  7．每条记录最多成功结算一次；结算副本保留当时金额、收支类型、资金角色和分配依据，后续不改写。
+  8．批次、明细、记录归属与必要日志全部保存成功或全部不生效；确认时关联变化须刷新预览。
+  9．应收应付方案不代表已付款；同账本同月仅一份有效预算，操作记录不可修改或删除。
+endlegend
 @enduml

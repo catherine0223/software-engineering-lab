@@ -2,49 +2,79 @@
 title 多人共享记账系统——组件图
 left to right direction
 skinparam componentStyle rectangle
+skinparam defaultFontName Microsoft YaHei
+skinparam shadowing false
+skinparam nodesep 40
+skinparam ranksep 60
 
-actor "用户" as User
+rectangle "用户" as User
 
 package "多人共享记账系统" {
   component "用户界面" as UI
 
-  component "账号与会话" as Auth
-  component "账本与成员" as Ledger
-  component "收支记录与分配" as Entry
-  component "审核与纠错" as Review
-  component "查询、预算与统计" as Query
-  component "结算" as Settlement
+  package "业务模块" as Business {
+    component "账号与登录状态" as Auth
+    component "账本与成员" as Ledger
+    component "收支记录与分配" as Entry
+    component "审核与纠错" as Review
+    component "查询、预算与统计" as Query
+    component "结算" as Settlement
+  }
 
-  component "权限与审计" as Security
+  component "权限检查" as Permission
+  component "审计日志" as Audit
   component "数据存储" as Storage
 }
 
 User --> UI : 操作
-
 UI --> Auth : 注册、登录
 UI --> Ledger : 管理账本及成员
 UI --> Entry : 录入及提交收支
 UI --> Review : 审核及纠错
-UI --> Query : 查询及查看汇总
+UI --> Query : 查询、预算及统计
 UI --> Settlement : 预览及保存结算
+UI --> Audit : 查看允许访问的操作记录
 
-Auth --> Security : 校验会话、记录安全事件
-Ledger --> Security : 校验权限、记录操作
-Entry --> Security : 校验权限与私有范围、记录操作
-Review --> Security : 校验审核资格、记录操作
-Query --> Security : 校验数据可见范围
-Settlement --> Security : 校验管理员资格、记录操作
+Business ..> Permission : 检查登录、操作权限和数据查看范围
+Business ..> Audit : 记录重要操作和登录等安全事件
+Business ..> Storage : 读取与保存业务数据
 
-Auth --> Storage : 账号及会话
-Ledger --> Storage : 账本、成员历史及邀请
-Entry --> Storage : 记录及分配明细
-Review --> Storage : 状态、版本及纠错关联
-Query --> Storage : 查询账目、读写预算
-Settlement --> Storage : 读取候选、原子保存批次及归属
-Security --> Storage : 读取权限、保存审计记录
+Audit --> Permission : 检查可以查看哪些操作记录
+
+Permission --> Storage : 读取登录状态、当前成员身份和数据权限
+Audit --> Storage : 保存和查询操作记录（不可改删）
+
+note bottom of Business
+  三条分组箭头概括各业务模块使用的公共功能。
+  每种操作按需检查权限、记录日志和访问数据。
+  实际调用顺序见时序图。
+end note
 
 note bottom of Storage
-  结算结果、依据及记录归属同时生效；
-  后续补录和冲销不改写历史结算快照。
+  访问数据前检查是否有权操作或查看。
+  保存前再次检查状态、版本和业务条件。
+  业务修改和必要的操作日志一起保存成功，
+  或一起不生效。
+  结算结果、计算依据和记录的批次归属一起保存；
+  成组原账与冲销保存在同一批次。
+  后续补录、冲销不修改已保存的历史结算结果。
 end note
+
+' 实验二期间与甲方确认后的成组结算约束，2026-11-03
+legend bottom left
+  结算模块：已选原账和已通过的关联冲销都未结算时，必须一起加入，不受冲销日期范围限制。
+  显示两条记录的对应关系和加入原因；确认时数据变化须刷新预览。
+  原账已结算时只处理冲销，不修改旧批次。
+  箭头表示模块使用哪些功能，不表示操作先后；具体顺序见时序图。
+  每次访问受保护功能，都检查当前登录状态、账本成员身份、角色和数据查看范围。
+  角色按账本分别设置：
+  · 管理员：可记账、管理成员和预算、审核他人记录、发起结算和查看公共操作日志；不能查看或代作废他人私有草稿。
+  · 记账成员：可记账，并按规则修改、提交或撤回本人未审核记录。
+  · 只读成员：查看允许访问的数据；只能填写原因作废降为只读之前本人保存的草稿。
+  三类角色均可参与费用承担和收入分配。
+  从未提交的草稿即使作废也只有本人仍需具有账本访问资格时对本人可见。
+  私有操作历史不向其他成员或管理员公开。
+  系统安全审计记录仅供维护使用。
+endlegend
 @enduml
+
