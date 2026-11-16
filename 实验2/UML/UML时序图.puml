@@ -1,6 +1,7 @@
 @startuml
 title 多人共享记账系统——审核通过时序图
 autonumber
+caption 实验三期间与甲方确认后修改（2026-11-16）：补充提交人显示和未来日期校验
 
 actor "管理员" as Admin
 boundary "审核页面" as Page
@@ -27,7 +28,7 @@ else 权限有效
     Page --> Admin : 显示提示
   else 允许查看该记录
     Review --> Page : 返回内容、状态、提交人和版本v
-    Page --> Admin : 展示审核详情
+    Page --> Admin : 展示审核详情（提交人显示用户名和手机号尾号）
     Admin -> Page : 点击“审核通过”
     Page -> Review : 请求审核通过(entryId, expectedVersion=v)
 
@@ -53,6 +54,9 @@ else 权限有效
       else 最新版本不等于v
         Review -> DB : 撤销本次事务修改
         Review --> Page : 记录已修改，请重新查看后审核
+      else 发生日期晚于北京时间当天
+        Review -> DB : 撤销本次事务修改
+        Review --> Page : 发生日期无效，请核对发生日期
       else 所有检查通过
         Review -> DB : 仅在状态仍待审核且版本仍为v时，\n改为已通过、保存审核时间并递增版本
         DB --> Review : 返回是否成功修改这条记录
